@@ -11,7 +11,7 @@ st.markdown("##")
 # --- Cargar datos --- #
 # NOTA IMPORTANTE: Para ejecutar localmente, asegúrate de que 'SalidaVentas.xlsx'
 # esté en el mismo directorio que tu archivo 'app.py'.
-file_path = 'SalidaVentas.xlsx'
+file_path = datos/'SalidaVentas.xlsx'
 
 # --- Preprocesamiento de datos (si es necesario) --- #
 # Asegurar que las columnas de fecha sean de tipo datetime
