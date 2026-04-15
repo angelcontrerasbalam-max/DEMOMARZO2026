@@ -9,12 +9,13 @@ st.title(":bar_chart: Dashboard de Análisis de Ventas")
 st.markdown("##")
 
 # --- Cargar datos --- #
-# Asegúrate de que esta ruta sea accesible si ejecutas en Colab o ajusta para local
-file_path = 'datos/SalidaVentas.xlsx'
+# NOTA IMPORTANTE: Para ejecutar localmente, asegúrate de que 'SalidaVentas.xlsx'
+# esté en el mismo directorio que tu archivo 'app.py'.
+file_path = 'SalidaVentas.xlsx'
 try:
     df = pd.read_excel(file_path)
 except FileNotFoundError:
-    st.error(f"Error: El archivo no se encontró en {file_path}. Asegúrate de que la ruta es correcta.")
+    st.error(f"Error: El archivo no se encontró en {file_path}. Asegúrate de que la ruta es correcta y que el archivo está en el mismo directorio que app.py.")
     st.stop()
 
 # --- Preprocesamiento de datos (si es necesario) --- #
@@ -94,9 +95,9 @@ st.markdown("--- #")
 # 1. Ventas por Región
 sales_by_region = df_selection.groupby("Region")["Sales"].sum().reset_index()
 fig_region_sales = px.bar(
-    sales_by_region, 
-    x="Region", 
-    y="Sales", 
+    sales_by_region,
+    x="Region",
+    y="Sales",
     title="**Ventas por Región**",
     color_discrete_sequence=px.colors.sequential.Plotly3, # Utiliza una secuencia de colores
     template="plotly_white"
@@ -147,20 +148,36 @@ fig_time_series = px.line(
 fig_time_series.update_layout(xaxis_title="Fecha de Pedido", yaxis_title="Ventas ($)")
 st.plotly_chart(fig_time_series, use_container_width=True)
 
+# Add state abbreviation to full name mapping
+us_state_abbreviations = {
+    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+    'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+    'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+    'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
+    'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+    'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+    'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
+    'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
+}
+
 # 5. Mapa Coroplético de Ventas por Estado
 # Asegurarse de que los nombres de los estados sean consistentes si hay variaciones.
-# Para este ejemplo, asumimos que 'State' es suficiente para mapear con Plotly.
 sales_by_state = df_selection.groupby("State")["Sales"].sum().reset_index()
+
+# Convert state abbreviations to full names if present in the 'State' column
+sales_by_state['State_Full_Name'] = sales_by_state['State'].apply(lambda x: us_state_abbreviations.get(x, x))
 
 fig_map = px.choropleth(
     sales_by_state,
-    locations="State",
-    locationmode="USA-states", # Si los datos son de EE.UU. o ajusta según tu país
+    locations="State_Full_Name", # Use the full state names for plotting
+    locationmode="USA-states", 
     color="Sales",
-    hover_name="State",
-    color_continuous_scale="agsunset", # Escala de color
+    hover_name="State", # Display original state name (abbreviation or full) on hover
+    color_continuous_scale="Reds", 
     title="**Ventas Totales por Estado**",
-    scope="usa" # Para enfocar el mapa en EE.UU. o ajusta según tu país
+    scope="usa" 
 )
 fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
 st.plotly_chart(fig_map, use_container_width=True)
