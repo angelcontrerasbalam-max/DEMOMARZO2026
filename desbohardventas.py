@@ -12,10 +12,6 @@ st.markdown("##")
 # Asegúrate de que esta ruta sea accesible si ejecutas en Colab o ajusta para local
 file_path = 'datos/SalidaVentas.xlsx'
 
-# --- Preprocesamiento de datos (si es necesario) --- #
-# Asegurar que las columnas de fecha sean de tipo datetime
-df['Order Date'] = pd.to_datetime(df['Order Date'])
-
 # Añadir columnas útiles para filtros de tiempo
 df['Year'] = df['Order Date'].dt.year
 df['Month'] = df['Order Date'].dt.month_name()
