@@ -10,9 +10,7 @@ st.set_page_config(page_title="Dashboard de Ventas USA", layout="wide")
 st.title("Dashboard de Ventas en USA")
 
 # --- Cargar datos ---
-@st.cache_data
-def load_data(file_path):
-    df = pd.read_excel(file_path)
+file_path = 'datos/SalidaVentas.xlsx'
 
     # Asegurarse de que las columnas 'State' y 'Sales' existan
     if 'State' not in df.columns:
