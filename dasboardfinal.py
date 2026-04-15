@@ -11,7 +11,7 @@ st.markdown("##")
 # --- Cargar datos --- #
 # NOTA IMPORTANTE: Para ejecutar localmente, asegúrate de que 'SalidaVentas.xlsx'
 # esté en el mismo directorio que tu archivo 'app.py'.
-file_path = 'SalidaVentas.xlsx'
+file_path = 'datos/SalidaVentas.xlsx'
 try:
     df = pd.read_excel(file_path)
 except FileNotFoundError:
