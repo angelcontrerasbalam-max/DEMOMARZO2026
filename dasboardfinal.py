@@ -1,167 +1,133 @@
+%%writefile app.py
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- Configuración de la página --- #
-st.set_page_config(page_title="Dashboard de Ventas", page_icon=":bar_chart:", layout="wide")
+# --- Configuración de la página de Streamlit ---
+st.set_page_config(page_title="Dashboard de Ventas USA", layout="wide")
 
-st.title(":bar_chart: Dashboard de Análisis de Ventas")
-st.markdown("##")
+st.title("Dashboard de Ventas en USA")
 
-# --- Cargar datos --- #
-# NOTA IMPORTANTE: Para ejecutar localmente, asegúrate de que 'SalidaVentas.xlsx'
-# esté en el mismo directorio que tu archivo 'app.py'.
-file_path = datos/'SalidaVentas.xlsx'
+# --- Cargar datos ---
+@st.cache_data
+def load_data(file_path):
+    df = pd.read_excel(file_path)
 
-# --- Preprocesamiento de datos (si es necesario) --- #
-# Asegurar que las columnas de fecha sean de tipo datetime
-df['Order Date'] = pd.to_datetime(df['Order Date'])
+    # Asegurarse de que las columnas 'State' y 'Sales' existan
+    if 'State' not in df.columns:
+        possible_state_cols = [col for col in df.columns if 'state' in col.lower() or 'estado' in col.lower()]
+        if possible_state_cols:
+            df['State'] = df[possible_state_cols[0]]
+        else:
+            st.error("Columna 'State' o 'Estado' no encontrada. Por favor, ajuste el nombre de la columna en el archivo o en el código.")
+            st.stop()
 
-# Añadir columnas útiles para filtros de tiempo
-df['Year'] = df['Order Date'].dt.year
-df['Month'] = df['Order Date'].dt.month_name()
+    if 'Sales' not in df.columns:
+        possible_sales_cols = [col for col in df.columns if 'sales' in col.lower() or 'ventas' in col.lower() or 'total' in col.lower()]
+        if possible_sales_cols:
+            df['Sales'] = df[possible_sales_cols[0]]
+        else:
+            st.error("Columna 'Sales' o 'Ventas' no encontrada. Por favor, ajuste el nombre de la columna en el archivo o en el código.")
+            st.stop()
 
-# --- Barra lateral para filtros --- #
+    df['Sales'] = pd.to_numeric(df['Sales'], errors='coerce').fillna(0)
+    
+    # Puedes añadir más columnas para gráficos si existen (ej. 'Category', 'Date')
+    # if 'Category' in df.columns: df['Category'] = df['Category'].astype(str)
+    # if 'Date' in df.columns: df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+    return df
+
+# Ruta del archivo (ajuste si el archivo no está en la misma carpeta que app.py)
+file_path = 'SalidaVentas.xlsx' # Asume que el archivo está en la misma carpeta que app.py
+
+df = load_data(file_path)
+
+# --- Sidebar para filtros ---
 st.sidebar.header("Filtros")
 
-# Filtro por Región
-selected_regions = st.sidebar.multiselect(
-    "Selecciona la(s) Región(es):",
-    options=df["Region"].unique(),
-    default=df["Region"].unique()
-)
+# Ejemplo de filtro por estado (si hay muchos estados, considere un multiselect)
+all_states = ['Todos'] + sorted(df['State'].unique().tolist())
+selected_state = st.sidebar.selectbox('Seleccionar Estado', all_states)
 
-# Filtro por Categoría
-selected_categories = st.sidebar.multiselect(
-    "Selecciona la(s) Categoría(s):",
-    options=df["Category"].unique(),
-    default=df["Category"].unique()
-)
+filtered_df = df.copy()
+if selected_state != 'Todos':
+    filtered_df = df[df['State'] == selected_state]
 
-# Filtro por Rango de Fechas
-min_date = df['Order Date'].min().to_pydatetime()
-max_date = df['Order Date'].max().to_pydatetime()
+# --- Visualizaciones ---
 
-date_range = st.sidebar.slider(
-    "Selecciona el Rango de Fechas:",
-    min_value=min_date,
-    max_value=max_date,
-    value=(min_date, max_date),
-    format="YYYY-MM-DD"
-)
+st.subheader("Ventas Totales por Estado (Mapa de USA)")
 
-# --- Aplicar filtros --- #
-df_selection = df.query(
-    "Region == @selected_regions & Category == @selected_categories "
-)
+# Agrupar ventas por estado para el mapa
+sales_by_state = filtered_df.groupby('State')['Sales'].sum().reset_index()
+sales_by_state.columns = ['State', 'Total Sales']
 
-df_selection = df_selection[
-    (df_selection['Order Date'] >= date_range[0]) & (df_selection['Order Date'] <= date_range[1])
-]
-
-# --- Verificar si hay datos después del filtrado --- #
-if df_selection.empty:
-    st.warning("No hay datos disponibles según los filtros seleccionados.")
-    st.stop() # Detiene la ejecución si no hay datos
-
-# --- Métricas Clave (KPIs) --- #
-total_sales = df_selection["Sales"].sum()
-total_profit = df_selection["Profit"].sum()
-total_quantity = df_selection["Quantity"].sum()
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.subheader("Total de Ventas:")
-    st.subheader(f"$ {total_sales:,.2f}")
-
-with col2:
-    st.subheader("Ganancia Total:")
-    st.subheader(f"$ {total_profit:,.2f}")
-
-with col3:
-    st.subheader("Cantidad Total:")
-    st.subheader(f"{total_quantity:,.0f}")
-
-st.markdown("--- #")
-
-# --- Gráficos --- #
-
-# 1. Ventas por Región
-sales_by_region = df_selection.groupby("Region")["Sales"].sum().reset_index()
-fig_region_sales = px.bar(
-    sales_by_region,
-    x="Region",
-    y="Sales",
-    title="**Ventas por Región**",
-    color_discrete_sequence=px.colors.sequential.Plotly3, # Utiliza una secuencia de colores
-    template="plotly_white"
-)
-fig_region_sales.update_layout(xaxis_title="Región", yaxis_title="Ventas ($)")
-st.plotly_chart(fig_region_sales, use_container_width=True)
-
-# 2. Ventas por Categoría
-sales_by_category = df_selection.groupby("Category")["Sales"].sum().reset_index()
-fig_category_sales = px.bar(
-    sales_by_category,
-    x="Category",
-    y="Sales",
-    title="**Ventas por Categoría**",
-    color_discrete_sequence=px.colors.sequential.Viridis_r, # Otra secuencia de colores
-    template="plotly_white"
-)
-fig_category_sales.update_layout(xaxis_title="Categoría", yaxis_title="Ventas ($)")
-st.plotly_chart(fig_category_sales, use_container_width=True)
-
-# 3. Ventas por Sub-Categoría (Top 10)
-sales_by_sub_category = df_selection.groupby("Sub-Category")["Sales"].sum().nlargest(10).reset_index()
-fig_sub_category_sales = px.bar(
-    sales_by_sub_category,
-    x="Sub-Category",
-    y="Sales",
-    title="**Top 10 Ventas por Sub-Categoría**",
-    color_discrete_sequence=px.colors.sequential.Plasma,
-    template="plotly_white"
-)
-fig_sub_category_sales.update_layout(xaxis_title="Sub-Categoría", yaxis_title="Ventas ($)")
-st.plotly_chart(fig_sub_category_sales, use_container_width=True)
-
-
-# 4. Ventas a lo largo del tiempo (por mes/año)
-df_selection['Order_Month_Year'] = df_selection['Order Date'].dt.to_period('M').astype(str)
-sales_over_time = df_selection.groupby('Order_Month_Year')['Sales'].sum().reset_index()
-sales_over_time['Order_Month_Year'] = pd.to_datetime(sales_over_time['Order_Month_Year'])
-sales_over_time = sales_over_time.sort_values(by='Order_Month_Year')
-
-fig_time_series = px.line(
-    sales_over_time,
-    x='Order_Month_Year',
-    y='Sales',
-    title='**Ventas a lo largo del tiempo**',
-    template='plotly_white'
-)
-fig_time_series.update_layout(xaxis_title="Fecha de Pedido", yaxis_title="Ventas ($)")
-st.plotly_chart(fig_time_series, use_container_width=True)
-
-# 5. Mapa Coroplético de Ventas por Estado
-# Asegurarse de que los nombres de los estados sean consistentes si hay variaciones.
-# Para este ejemplo, asumimos que 'State' es suficiente para mapear con Plotly.
-sales_by_state = df_selection.groupby("State")["Sales"].sum().reset_index()
-
+# Crear el mapa de coropletas de USA
+# Plotly puede usar nombres de estados completos o códigos de 2 letras.
+# Si sus estados no son reconocidos, necesitará un mapeo. Ver documentación de Plotly.
 fig_map = px.choropleth(
     sales_by_state,
-    locations="State",
-    locationmode="USA-states", # Si los datos son de EE.UU. o ajusta según tu país
-    color="Sales",
-    hover_name="State",
-    color_continuous_scale="Reds", # Escala de color para el mapa: Rojo
-    title="**Ventas Totales por Estado**",
-    scope="usa" # Para enfocar el mapa en EE.UU. o ajusta según tu país
+    locations='State',
+    locationmode='USA-states', # Asegúrate que tus estados coinciden con este modo
+    color='Total Sales',
+    scope="usa",
+    color_continuous_scale="Reds", # Escala de rojos para ventas intensas
+    title="Distribución de Ventas por Estado en USA",
+    hover_name='State',
+    hover_data={'Total Sales': True}
 )
-fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
+fig_map.update_layout(geo_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin={"r":0,"t":50,"l":0,"b":0})
 st.plotly_chart(fig_map, use_container_width=True)
 
+# --- Otros Gráficos (Ejemplos) ---
 
-# --- Mostrar datos filtrados --- #
-st.markdown("### Datos Filtrados")
-st.dataframe(df_selection)
+st.subheader("Gráficos de Ventas Adicionales")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.write("#### Top 10 Estados por Ventas")
+    top_states = sales_by_state.sort_values(by='Total Sales', ascending=False).head(10)
+    fig_top_states = px.bar(
+        top_states,
+        x='State',
+        y='Total Sales',
+        title='Top 10 Estados',
+        labels={'Total Sales': 'Ventas Totales'}
+    )
+    st.plotly_chart(fig_top_states, use_container_width=True)
+
+with col2:
+    # Gráfico de ventas por categoría (si existe la columna 'Category')
+    if 'Category' in filtered_df.columns:
+        st.write("#### Ventas por Categoría de Producto")
+        sales_by_category = filtered_df.groupby('Category')['Sales'].sum().reset_index()
+        fig_category = px.pie(
+            sales_by_category,
+            values='Sales',
+            names='Category',
+            title='Ventas por Categoría'
+        )
+        st.plotly_chart(fig_category, use_container_width=True)
+    else:
+        st.info("Para mostrar ventas por categoría, asegúrese de que su archivo tiene una columna 'Category'.")
+
+# Gráfico de Ventas a lo largo del tiempo (si existe una columna 'Date')
+if 'Date' in filtered_df.columns:
+    st.subheader("Ventas a lo Largo del Tiempo")
+    sales_over_time = filtered_df.groupby('Date')['Sales'].sum().reset_index()
+    fig_time = px.line(
+        sales_over_time,
+        x='Date',
+        y='Sales',
+        title='Ventas Diarias',
+        labels={'Sales': 'Ventas'}
+    )
+    st.plotly_chart(fig_time, use_container_width=True)
+else:
+    st.info("Para mostrar las ventas a lo largo del tiempo, asegúrese de que su archivo tiene una columna 'Date' en formato de fecha.")
+
+
+st.markdown("--- ")
+st.markdown("Dashboard creado con Streamlit y Plotly.")
