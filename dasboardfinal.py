@@ -9,41 +9,33 @@ st.title(":bar_chart: Dashboard de Análisis de Ventas")
 st.markdown("##")
 
 # --- Cargar datos --- #
-# NOTA IMPORTANTE: Para ejecutar localmente, asegúrate de que 'SalidaVentas.xlsx'
-# esté en el mismo directorio que tu archivo 'app.py'.
 file_path = 'datos/SalidaVentas.xlsx'
 try:
     df = pd.read_excel(file_path)
 except FileNotFoundError:
-    st.error(f"Error: El archivo no se encontró en {file_path}. Asegúrate de que la ruta es correcta y que el archivo está en el mismo directorio que app.py.")
+    st.error(f"Error: El archivo no se encontró en {file_path}. Asegúrate de que la ruta es correcta.")
     st.stop()
 
-# --- Preprocesamiento de datos (si es necesario) --- #
-# Asegurar que las columnas de fecha sean de tipo datetime
+# --- Preprocesamiento de datos --- #
 df['Order Date'] = pd.to_datetime(df['Order Date'])
-
-# Añadir columnas útiles para filtros de tiempo
 df['Year'] = df['Order Date'].dt.year
 df['Month'] = df['Order Date'].dt.month_name()
 
 # --- Barra lateral para filtros --- #
 st.sidebar.header("Filtros")
 
-# Filtro por Región
 selected_regions = st.sidebar.multiselect(
     "Selecciona la(s) Región(es):",
     options=df["Region"].unique(),
     default=df["Region"].unique()
 )
 
-# Filtro por Categoría
 selected_categories = st.sidebar.multiselect(
     "Selecciona la(s) Categoría(s):",
     options=df["Category"].unique(),
     default=df["Category"].unique()
 )
 
-# Filtro por Rango de Fechas
 min_date = df['Order Date'].min().to_pydatetime()
 max_date = df['Order Date'].max().to_pydatetime()
 
@@ -57,7 +49,7 @@ date_range = st.sidebar.slider(
 
 # --- Aplicar filtros --- #
 df_selection = df.query(
-    "Region == @selected_regions & Category == @selected_categories "
+    "Region == @selected_regions & Category == @selected_categories"
 )
 
 df_selection = df_selection[
@@ -67,7 +59,7 @@ df_selection = df_selection[
 # --- Verificar si hay datos después del filtrado --- #
 if df_selection.empty:
     st.warning("No hay datos disponibles según los filtros seleccionados.")
-    st.stop() # Detiene la ejecución si no hay datos
+    st.stop()
 
 # --- Métricas Clave (KPIs) --- #
 total_sales = df_selection["Sales"].sum()
@@ -88,7 +80,7 @@ with col3:
     st.subheader("Cantidad Total:")
     st.subheader(f"{total_quantity:,.0f}")
 
-st.markdown("--- #")
+st.markdown("---")
 
 # --- Gráficos --- #
 
@@ -99,7 +91,7 @@ fig_region_sales = px.bar(
     x="Region",
     y="Sales",
     title="**Ventas por Región**",
-    color_discrete_sequence=px.colors.sequential.Plotly3, # Utiliza una secuencia de colores
+    color_discrete_sequence=px.colors.sequential.Plotly3,
     template="plotly_white"
 )
 fig_region_sales.update_layout(xaxis_title="Región", yaxis_title="Ventas ($)")
@@ -112,7 +104,7 @@ fig_category_sales = px.bar(
     x="Category",
     y="Sales",
     title="**Ventas por Categoría**",
-    color_discrete_sequence=px.colors.sequential.Viridis_r, # Otra secuencia de colores
+    color_discrete_sequence=px.colors.sequential.Viridis_r,
     template="plotly_white"
 )
 fig_category_sales.update_layout(xaxis_title="Categoría", yaxis_title="Ventas ($)")
@@ -131,7 +123,6 @@ fig_sub_category_sales = px.bar(
 fig_sub_category_sales.update_layout(xaxis_title="Sub-Categoría", yaxis_title="Ventas ($)")
 st.plotly_chart(fig_sub_category_sales, use_container_width=True)
 
-
 # 4. Ventas a lo largo del tiempo (por mes/año)
 df_selection['Order_Month_Year'] = df_selection['Order Date'].dt.to_period('M').astype(str)
 sales_over_time = df_selection.groupby('Order_Month_Year')['Sales'].sum().reset_index()
@@ -148,41 +139,23 @@ fig_time_series = px.line(
 fig_time_series.update_layout(xaxis_title="Fecha de Pedido", yaxis_title="Ventas ($)")
 st.plotly_chart(fig_time_series, use_container_width=True)
 
-# Add state abbreviation to full name mapping
-us_state_abbreviations = {
-    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
-    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
-    'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
-    'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
-    'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
-    'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
-    'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
-    'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
-    'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
-}
-
 # 5. Mapa Coroplético de Ventas por Estado
-# Asegurarse de que los nombres de los estados sean consistentes si hay variaciones.
 sales_by_state = df_selection.groupby("State")["Sales"].sum().reset_index()
-
-# Convert state abbreviations to full names if present in the 'State' column
-sales_by_state['State_Full_Name'] = sales_by_state['State'].apply(lambda x: us_state_abbreviations.get(x, x))
 
 fig_map = px.choropleth(
     sales_by_state,
-    locations="State_Full_Name", # Use the full state names for plotting
-    locationmode="USA-states", 
+    locations="State",
+    locationmode="USA-states",
     color="Sales",
-    hover_name="State", # Display original state name (abbreviation or full) on hover
-    color_continuous_scale="Reds", 
+    hover_name="State",
+    color_continuous_scale="Reds",                        # 🔴 Rojo intenso = más ventas
+    range_color=(0, sales_by_state["Sales"].max()),       # Ancla el máximo al estado top
     title="**Ventas Totales por Estado**",
-    scope="usa" 
+    scope="usa",
+    labels={"Sales": "Ventas ($)"}                        # Etiqueta del colorbar
 )
-fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
+fig_map.update_layout(
+    margin={"r": 0, "t": 50, "l": 0, "b": 0},
+    coloraxis_colorbar=dict(title="Ventas ($)")           # Título del colorbar lateral
+)
 st.plotly_chart(fig_map, use_container_width=True)
-
-
-# --- Mostrar datos filtrados --- #
-st.markdown("### Datos Filtrados")
-st.dataframe(df_selection)
