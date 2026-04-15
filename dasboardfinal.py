@@ -27,7 +27,7 @@ us_state_names_mapping = {
 us_full_state_names_set = set(us_state_names_mapping.values())
 
 # --- Cargar datos ---
-file_path = 'SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+file_path = 'datos/SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
 
 @st.cache_data
 def load_data(path):
