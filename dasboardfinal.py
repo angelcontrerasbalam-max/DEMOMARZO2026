@@ -1,3 +1,5 @@
+%%writefile app.py
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,42 +10,37 @@ st.set_page_config(page_title="Dashboard de Ventas", page_icon=":bar_chart:", la
 st.title(":bar_chart: Dashboard de Análisis de Ventas")
 st.markdown("##")
 
-# --- Cargar datos ---
-# Asegúrate de que esta ruta sea accesible si ejecutas en Colab o ajusta para local
-# Cambiado a la ruta original que usé, si se ejecuta en local, el archivo debe estar en 'datos/SalidaVentas.xlsx'
-file_path = 'datos/SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+# --- Mapeo de nombres de estados para Plotly (Robustez) ---
+us_state_names_mapping = {
+    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+    'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+    'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
+    'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire',
+    'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina',
+    'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania',
+    'RI': 'Rhode Island', 'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee',
+    'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
+    'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia',
+    'PR': 'Puerto Rico' # Puerto Rico también puede ser parte de algunos datasets de USA
+}
+us_full_state_names_set = set(us_state_names_mapping.values())
 
-# Usamos st.cache_data para evitar cargar los datos repetidamente
+# --- Cargar datos ---
+file_path = 'SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+
 @st.cache_data
 def load_data(path):
     try:
         df = pd.read_excel(path)
 
         # Asegurar que las columnas esenciales existan
-        if 'Order Date' not in df.columns:
-            st.error("Columna 'Order Date' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Region' not in df.columns:
-            st.error("Columna 'Region' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Category' not in df.columns:
-            st.error("Columna 'Category' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Sales' not in df.columns:
-            st.error("Columna 'Sales' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Profit' not in df.columns:
-            st.error("Columna 'Profit' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Quantity' not in df.columns:
-            st.error("Columna 'Quantity' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'State' not in df.columns:
-            st.error("Columna 'State' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
-        if 'Sub-Category' not in df.columns:
-            st.error("Columna 'Sub-Category' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-            st.stop()
+        required_cols = ['Order Date', 'Region', 'Category', 'Sales', 'Profit', 'Quantity', 'State', 'Sub-Category']
+        for col in required_cols:
+            if col not in df.columns:
+                st.error(f"Columna '{col}' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
+                st.stop()
 
         # Preprocesamiento de datos
         df['Order Date'] = pd.to_datetime(df['Order Date'])
@@ -53,6 +50,24 @@ def load_data(path):
         df['Profit'] = pd.to_numeric(df['Profit'], errors='coerce')
         df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
         
+        # --- Normalización de nombres de estados para el mapa ---
+        df['State'] = df['State'].astype(str).str.strip() # Limpiar espacios en blanco
+
+        # Crear un mapa inverso para normalizar nombres completos con capitalización correcta
+        full_state_lower_to_official = {name.lower(): name for name in us_full_state_names_set}
+
+        def normalize_state_name(state_input):
+            # Primero intentar mapear de abreviatura a nombre completo oficial
+            if state_input.upper() in us_state_names_mapping:
+                return us_state_names_mapping[state_input.upper()]
+            # Luego intentar mapear nombres completos (insensible a mayúsculas/minúsculas) a nombre completo oficial
+            elif state_input.lower() in full_state_lower_to_official:
+                return full_state_lower_to_official[state_input.lower()]
+            return state_input # Si no se encuentra, devolver el original
+
+        df['State'] = df['State'].apply(normalize_state_name)
+        # --- Fin Normalización de estados ---
+
         return df
     except FileNotFoundError:
         st.error(f"Error: El archivo no se encontró en {path}. Asegúrese de que la ruta es correcta.")
@@ -186,20 +201,23 @@ fig_time_series.update_layout(xaxis_title="Fecha de Pedido", yaxis_title="Ventas
 st.plotly_chart(fig_time_series, use_container_width=True)
 
 # 5. Mapa Coroplético de Ventas por Estado
-# Asegurarse de que los nombres de los estados sean consistentes si hay variaciones.
-# Para este ejemplo, asumimos que 'State' es suficiente para mapear con Plotly.
 sales_by_state = df_selection.groupby("State")["Sales"].sum().reset_index()
 
 fig_map = px.choropleth(
     sales_by_state,
     locations="State",
-    locationmode="USA-states", # Si los datos son de EE.UU. o ajusta según tu país
+    locationmode="USA-states", 
     color="Sales",
     hover_name="State",
-    color_continuous_scale="Reds", # CAMBIO AQUI: Escala de rojos para ventas intensas
+    color_continuous_scale="Reds", # Escala de rojos para ventas intensas
     title="**Ventas Totales por Estado**",
-    scope="usa" # Para enfocar el mapa en EE.UU. o ajusta según tu país
+    scope="usa" 
 )
 fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
 st.plotly_chart(fig_map, use_container_width=True)
+
+# --- Debugging para el usuario (mostrar estados únicos) ---
+st.sidebar.markdown("--- ")
+st.sidebar.subheader("Estados Únicos en los Datos (para depuración):")
+st.sidebar.text(df['State'].unique())
 
