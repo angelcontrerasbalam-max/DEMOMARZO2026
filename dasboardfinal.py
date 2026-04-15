@@ -11,7 +11,7 @@ st.markdown("##")
 # --- Cargar datos ---
 # Asegúrate de que esta ruta sea accesible si ejecutas en Colab o ajusta para local
 # Cambiado a la ruta original que usé, si se ejecuta en local, el archivo debe estar en 'datos/SalidaVentas.xlsx'
-file_path = 'SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+file_path = 'datos/SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
 
 # Usamos st.cache_data para evitar cargar los datos repetidamente
 @st.cache_data
