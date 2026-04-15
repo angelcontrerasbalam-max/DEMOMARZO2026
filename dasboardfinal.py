@@ -1,3 +1,4 @@
+%%writefile app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -26,7 +27,7 @@ us_state_names_mapping = {
 us_full_state_names_set = set(us_state_names_mapping.values())
 
 # --- Cargar datos ---
-file_path = 'datos/SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+file_path = 'SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
 
 @st.cache_data
 def load_data(path):
@@ -55,15 +56,19 @@ def load_data(path):
         full_state_lower_to_official = {name.lower(): name for name in us_full_state_names_set}
 
         def normalize_state_name(state_input):
-            # Primero intentar mapear de abreviatura a nombre completo oficial
-            if state_input.upper() in us_state_names_mapping:
-                return us_state_names_mapping[state_input.upper()]
+            # Convertir a mayúsculas para intentar mapear de abreviatura a nombre completo oficial
+            upper_state = state_input.upper()
+            if upper_state in us_state_names_mapping:
+                return us_state_names_mapping[upper_state]
             # Luego intentar mapear nombres completos (insensible a mayúsculas/minúsculas) a nombre completo oficial
-            elif state_input.lower() in full_state_lower_to_official:
-                return full_state_lower_to_official[state_input.lower()]
-            return state_input # Si no se encuentra, devolver el original
+            lower_state = state_input.lower()
+            if lower_state in full_state_lower_to_official:
+                return full_state_lower_to_official[lower_state]
+            return None # Si no se encuentra, devolver None para filtrar después
 
         df['State'] = df['State'].apply(normalize_state_name)
+        # Filtrar filas donde el estado no pudo ser normalizado a un estado de USA conocido
+        df = df.dropna(subset=['State'])
         # --- Fin Normalización de estados ---
 
         return df
@@ -218,4 +223,3 @@ st.plotly_chart(fig_map, use_container_width=True)
 st.sidebar.markdown("--- ")
 st.sidebar.subheader("Estados Únicos en los Datos (para depuración):")
 st.sidebar.text(df['State'].unique())
-
