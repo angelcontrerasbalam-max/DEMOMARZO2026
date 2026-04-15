@@ -2,85 +2,30 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- Configuración de la página ---
+# --- Configuración de la página --- #
 st.set_page_config(page_title="Dashboard de Ventas", page_icon=":bar_chart:", layout="wide")
 
 st.title(":bar_chart: Dashboard de Análisis de Ventas")
 st.markdown("##")
 
-# --- Mapeo de nombres de estados para Plotly (Robustez) ---
-us_state_names_mapping = {
-    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
-    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
-    'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
-    'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
-    'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire',
-    'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina',
-    'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania',
-    'RI': 'Rhode Island', 'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee',
-    'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
-    'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia',
-    'PR': 'Puerto Rico' # Puerto Rico también puede ser parte de algunos datasets de USA
-}
-us_full_state_names_set = set(us_state_names_mapping.values())
+# --- Cargar datos --- #
+# Asegúrate de que esta ruta sea accesible si ejecutas en Colab o ajusta para local
+file_path = 'datos/SalidaVentas.xlsx'
+try:
+    df = pd.read_excel(file_path)
+except FileNotFoundError:
+    st.error(f"Error: El archivo no se encontró en {file_path}. Asegúrate de que la ruta es correcta.")
+    st.stop()
 
-# --- Cargar datos ---
-file_path = 'datos/SalidaVentas.xlsx' # Se asume que el archivo estará en la misma carpeta que app.py
+# --- Preprocesamiento de datos (si es necesario) --- #
+# Asegurar que las columnas de fecha sean de tipo datetime
+df['Order Date'] = pd.to_datetime(df['Order Date'])
 
-@st.cache_data
-def load_data(path):
-    try:
-        df = pd.read_excel(path)
+# Añadir columnas útiles para filtros de tiempo
+df['Year'] = df['Order Date'].dt.year
+df['Month'] = df['Order Date'].dt.month_name()
 
-        # Asegurar que las columnas esenciales existan
-        required_cols = ['Order Date', 'Region', 'Category', 'Sales', 'Profit', 'Quantity', 'State', 'Sub-Category']
-        for col in required_cols:
-            if col not in df.columns:
-                st.error(f"Columna '{col}' no encontrada. Por favor, asegúrese de que su archivo la contiene.")
-                st.stop()
-
-        # Preprocesamiento de datos
-        df['Order Date'] = pd.to_datetime(df['Order Date'])
-        df['Year'] = df['Order Date'].dt.year
-        df['Month'] = df['Order Date'].dt.month_name()
-        df['Sales'] = pd.to_numeric(df['Sales'], errors='coerce')
-        df['Profit'] = pd.to_numeric(df['Profit'], errors='coerce')
-        df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
-        
-        # --- Normalización de nombres de estados para el mapa ---
-        df['State'] = df['State'].astype(str).str.strip() # Limpiar espacios en blanco
-
-        # Crear un mapa inverso para normalizar nombres completos con capitalización correcta
-        full_state_lower_to_official = {name.lower(): name for name in us_full_state_names_set}
-
-        def normalize_state_name(state_input):
-            # Convertir a mayúsculas para intentar mapear de abreviatura a nombre completo oficial
-            upper_state = state_input.upper()
-            if upper_state in us_state_names_mapping:
-                return us_state_names_mapping[upper_state]
-            # Luego intentar mapear nombres completos (insensible a mayúsculas/minúsculas) a nombre completo oficial
-            lower_state = state_input.lower()
-            if lower_state in full_state_lower_to_official:
-                return full_state_lower_to_official[lower_state]
-            return None # Si no se encuentra, devolver None para filtrar después
-
-        df['State'] = df['State'].apply(normalize_state_name)
-        # Filtrar filas donde el estado no pudo ser normalizado a un estado de USA conocido
-        df = df.dropna(subset=['State'])
-        # --- Fin Normalización de estados ---
-
-        return df
-    except FileNotFoundError:
-        st.error(f"Error: El archivo no se encontró en {path}. Asegúrese de que la ruta es correcta.")
-        st.stop()
-    except Exception as e:
-        st.error(f"Ocurrió un error al cargar o procesar el archivo: {e}")
-        st.stop()
-
-df = load_data(file_path)
-
-# --- Barra lateral para filtros ---
+# --- Barra lateral para filtros --- #
 st.sidebar.header("Filtros")
 
 # Filtro por Región
@@ -109,21 +54,21 @@ date_range = st.sidebar.slider(
     format="YYYY-MM-DD"
 )
 
-# --- Aplicar filtros ---
+# --- Aplicar filtros --- #
 df_selection = df.query(
-    "Region == @selected_regions and Category == @selected_categories "
+    "Region == @selected_regions & Category == @selected_categories "
 )
 
 df_selection = df_selection[
     (df_selection['Order Date'] >= date_range[0]) & (df_selection['Order Date'] <= date_range[1])
 ]
 
-# --- Verificar si hay datos después del filtrado ---
+# --- Verificar si hay datos después del filtrado --- #
 if df_selection.empty:
     st.warning("No hay datos disponibles según los filtros seleccionados.")
     st.stop() # Detiene la ejecución si no hay datos
 
-# --- Métricas Clave (KPIs) ---
+# --- Métricas Clave (KPIs) --- #
 total_sales = df_selection["Sales"].sum()
 total_profit = df_selection["Profit"].sum()
 total_quantity = df_selection["Quantity"].sum()
@@ -142,16 +87,16 @@ with col3:
     st.subheader("Cantidad Total:")
     st.subheader(f"{total_quantity:,.0f}")
 
-st.markdown("--- ")
+st.markdown("--- #")
 
-# --- Gráficos ---
+# --- Gráficos --- #
 
 # 1. Ventas por Región
 sales_by_region = df_selection.groupby("Region")["Sales"].sum().reset_index()
 fig_region_sales = px.bar(
-    sales_by_region,
-    x="Region",
-    y="Sales",
+    sales_by_region, 
+    x="Region", 
+    y="Sales", 
     title="**Ventas por Región**",
     color_discrete_sequence=px.colors.sequential.Plotly3, # Utiliza una secuencia de colores
     template="plotly_white"
@@ -203,22 +148,24 @@ fig_time_series.update_layout(xaxis_title="Fecha de Pedido", yaxis_title="Ventas
 st.plotly_chart(fig_time_series, use_container_width=True)
 
 # 5. Mapa Coroplético de Ventas por Estado
+# Asegurarse de que los nombres de los estados sean consistentes si hay variaciones.
+# Para este ejemplo, asumimos que 'State' es suficiente para mapear con Plotly.
 sales_by_state = df_selection.groupby("State")["Sales"].sum().reset_index()
 
 fig_map = px.choropleth(
     sales_by_state,
     locations="State",
-    locationmode="USA-states", 
+    locationmode="USA-states", # Si los datos son de EE.UU. o ajusta según tu país
     color="Sales",
     hover_name="State",
-    color_continuous_scale="Reds", # Escala de rojos para ventas intensas
+    color_continuous_scale="agsunset", # Escala de color
     title="**Ventas Totales por Estado**",
-    scope="usa" 
+    scope="usa" # Para enfocar el mapa en EE.UU. o ajusta según tu país
 )
 fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --- Debugging para el usuario (mostrar estados únicos) ---
-st.sidebar.markdown("--- ")
-st.sidebar.subheader("Estados Únicos en los Datos (para depuración):")
-st.sidebar.text(df['State'].unique())
+
+# --- Mostrar datos filtrados --- #
+st.markdown("### Datos Filtrados")
+st.dataframe(df_selection)
